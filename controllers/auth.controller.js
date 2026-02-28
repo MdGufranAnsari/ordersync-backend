@@ -61,6 +61,8 @@ const login = async (req, res) => {
         const token = jwt.sign(
             {
                 userId: user.id,
+                name: user.name,
+                phone: user.phone,
                 role: user.role,
                 accountStatus: user.account_status
             },
@@ -74,4 +76,21 @@ const login = async (req, res) => {
     }
 };
 
-module.exports = { register, login };
+// GET /api/auth/me
+const getMe = async (req, res) => {
+    try {
+        const userId = req.user.userId;
+        const [rows] = await pool.query('SELECT id, name, phone, role, account_status FROM users WHERE id = ?', [userId]);
+        const user = rows[0];
+
+        if (!user) {
+            return res.status(404).json({ message: 'User not found.' });
+        }
+
+        return res.status(200).json({ user });
+    } catch (error) {
+        return res.status(500).json({ message: 'Internal server error.', error: error.message });
+    }
+};
+
+module.exports = { register, login, getMe };
