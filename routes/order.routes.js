@@ -8,6 +8,11 @@ const {
     getSellerOrders,
     updateOrderPrices,
     updateOrderItems,
+    confirmOrder,
+    markReady,
+    verifyCode,
+    completeOrder,
+    reportNoShow,
 } = require('../controllers/order.controller');
 
 // All routes protected by JWT auth
@@ -16,5 +21,10 @@ router.get('/customer', verifyToken, authorizeRole('customer'), getCustomerOrder
 router.get('/seller', verifyToken, authorizeRole('seller'), getSellerOrders);
 router.put('/:id', verifyToken, authorizeRole('seller'), updateOrderPrices);
 router.patch('/:id/items', verifyToken, authorizeRole('customer'), updateOrderItems);
+router.post('/:id/confirm', verifyToken, authorizeRole('customer'), confirmOrder);
+router.post('/:id/ready', verifyToken, authorizeRole('seller'), markReady);
+router.post('/:id/verify-code', verifyToken, authorizeRole('seller'), verifyCode);
+router.post('/:id/complete', verifyToken, authorizeRole('seller'), completeOrder);
+router.post('/:id/no-show', verifyToken, authorizeRole('seller'), reportNoShow);
 
 module.exports = router;
