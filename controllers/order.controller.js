@@ -1,5 +1,6 @@
 const { v4: uuidv4 } = require('uuid');
 const pool = require('../db');
+const socket = require('../socket');
 
 // ── Helper: generate 4-digit pickup code ──
 function _genCode() {
@@ -64,6 +65,7 @@ const createOrder = async (req, res) => {
         }
         await conn.commit();
         const order = await _fetchOrder(conn, orderId, customer, seller, userId, sellerId);
+        _emitOrderUpdate(userId, sellerId);
         return res.status(201).json({ message: 'Order created successfully.', order });
     } catch (error) {
         await conn.rollback();
@@ -127,6 +129,7 @@ const updateOrderPrices = async (req, res) => {
         const [[customer]] = await conn.query('SELECT name, phone, profile_image FROM users WHERE id = ?', [order.customer_id]);
         const [[seller]] = await conn.query('SELECT name, phone, profile_image FROM users WHERE id = ?', [order.seller_id]);
         const updatedOrder = await _fetchOrder(conn, id, customer, seller, order.customer_id, order.seller_id);
+        _emitOrderUpdate(order.customer_id, order.seller_id);
         return res.status(200).json({ message: 'Order priced.', order: updatedOrder });
     } catch (error) {
         await conn.rollback();
@@ -166,6 +169,7 @@ const updateOrderItems = async (req, res) => {
         const [[customer]] = await conn.query('SELECT name, phone, profile_image FROM users WHERE id = ?', [order.customer_id]);
         const [[seller]] = await conn.query('SELECT name, phone, profile_image FROM users WHERE id = ?', [order.seller_id]);
         const updatedOrder = await _fetchOrder(conn, id, customer, seller, order.customer_id, order.seller_id);
+        _emitOrderUpdate(order.customer_id, order.seller_id);
         return res.status(200).json({ message: 'Order items updated.', order: updatedOrder });
     } catch (error) {
         await conn.rollback();
@@ -205,6 +209,7 @@ const confirmOrder = async (req, res) => {
         const [[customer]] = await conn.query('SELECT name, phone, profile_image FROM users WHERE id = ?', [order.customer_id]);
         const [[seller]] = await conn.query('SELECT name, phone, profile_image FROM users WHERE id = ?', [order.seller_id]);
         const updatedOrder = await _fetchOrder(conn, id, customer, seller, order.customer_id, order.seller_id);
+        _emitOrderUpdate(order.customer_id, order.seller_id);
         return res.status(200).json({ message: 'Order confirmed.', order: updatedOrder });
     } catch (error) {
         await conn.rollback();
@@ -239,6 +244,7 @@ const markReady = async (req, res) => {
         const [[customer]] = await conn.query('SELECT name, phone, profile_image FROM users WHERE id = ?', [order.customer_id]);
         const [[seller]] = await conn.query('SELECT name, phone, profile_image FROM users WHERE id = ?', [order.seller_id]);
         const updatedOrder = await _fetchOrder(conn, id, customer, seller, order.customer_id, order.seller_id);
+        _emitOrderUpdate(order.customer_id, order.seller_id);
         return res.status(200).json({ message: 'Order marked ready.', order: updatedOrder });
     } catch (error) {
         await conn.rollback();
@@ -277,6 +283,7 @@ const verifyCode = async (req, res) => {
         const [[seller]] = await conn.query('SELECT name, phone, profile_image FROM users WHERE id = ?', [order.seller_id]);
         const updatedOrder = await _fetchOrder(conn, id, customer, seller, order.customer_id, order.seller_id);
         conn.release();
+        _emitOrderUpdate(order.customer_id, order.seller_id);
         return res.status(200).json({ message: 'Code verified. Order completed!', order: updatedOrder });
     } catch (error) {
         conn.release();
@@ -307,6 +314,7 @@ const completeOrder = async (req, res) => {
         const [[seller]] = await conn.query('SELECT name, phone, profile_image FROM users WHERE id = ?', [order.seller_id]);
         const updatedOrder = await _fetchOrder(conn, id, customer, seller, order.customer_id, order.seller_id);
         conn.release();
+        _emitOrderUpdate(order.customer_id, order.seller_id);
         return res.status(200).json({ message: 'Order completed.', order: updatedOrder });
     } catch (error) {
         conn.release();
@@ -345,6 +353,7 @@ const reportNoShow = async (req, res) => {
         }
 
         conn.release();
+        _emitOrderUpdate(order.customer_id, order.seller_id);
         return res.status(200).json({
             message: 'No-show recorded.',
             noShowCount: customer.no_show_count,
@@ -357,6 +366,16 @@ const reportNoShow = async (req, res) => {
 };
 
 // ── Private helpers ─────────────────────────────────────────────
+
+function _emitOrderUpdate(customerId, sellerId) {
+    try {
+        const io = socket.getIo();
+        io.to(`room_${customerId}`).emit('order_updated');
+        io.to(`room_${sellerId}`).emit('order_updated');
+    } catch (err) {
+        console.error('Socket emit error:', err);
+    }
+}
 
 async function _fetchOrder(conn, orderId, customer, seller, customerId, sellerId) {
     const [[o]] = await conn.query('SELECT * FROM orders WHERE id = ?', [orderId]);
