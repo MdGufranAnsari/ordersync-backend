@@ -19,4 +19,19 @@ app.use('/api/auth', authRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/users', userRoutes);
 
+// Temporary migration route 
+app.get('/api/migrate', async (req, res) => {
+    try {
+        const pool = require('./db');
+        await pool.query('ALTER TABLE users ADD COLUMN profile_image VARCHAR(255) DEFAULT NULL');
+        res.send("Migration successful! Added profile_image column.");
+    } catch (e) {
+        if (e.code === 'ER_DUP_FIELDNAME') {
+            res.send("Migration already applied! profile_image exists.");
+        } else {
+            res.status(500).send("Migration failed: " + e.message);
+        }
+    }
+});
+
 module.exports = app;
