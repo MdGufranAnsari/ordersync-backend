@@ -4,7 +4,7 @@ const pool = require('../db');
 const getSellers = async (req, res) => {
   try {
     const [rows] = await pool.query(
-      "SELECT id, name, phone FROM users WHERE role = 'seller'"
+      "SELECT id, name, phone, profile_image FROM users WHERE role = 'seller'"
     );
     return res.status(200).json({ sellers: rows });
   } catch (error) {
