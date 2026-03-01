@@ -37,14 +37,14 @@ const createOrder = async (req, res) => {
     const conn = await pool.getConnection();
     try {
         // Check if customer account is restricted
-        const [[customer]] = await conn.query('SELECT name, phone, account_status FROM users WHERE id = ?', [userId]);
+        const [[customer]] = await conn.query('SELECT name, phone, account_status, profile_image FROM users WHERE id = ?', [userId]);
         if (customer?.account_status === 'restricted') {
             conn.release();
             return res.status(403).json({ message: 'Your account is restricted due to repeated no-shows. Contact support.' });
         }
 
         await conn.beginTransaction();
-        const [[seller]] = await conn.query('SELECT name, phone FROM users WHERE id = ?', [sellerId]);
+        const [[seller]] = await conn.query('SELECT name, phone, profile_image FROM users WHERE id = ?', [sellerId]);
 
         if (!customer || !seller) {
             await conn.rollback();
@@ -124,8 +124,8 @@ const updateOrderPrices = async (req, res) => {
         await conn.query("UPDATE orders SET total_amount = ?, status = 'PRICED' WHERE id = ?", [total, id]);
         await conn.commit();
 
-        const [[customer]] = await conn.query('SELECT name, phone FROM users WHERE id = ?', [order.customer_id]);
-        const [[seller]] = await conn.query('SELECT name, phone FROM users WHERE id = ?', [order.seller_id]);
+        const [[customer]] = await conn.query('SELECT name, phone, profile_image FROM users WHERE id = ?', [order.customer_id]);
+        const [[seller]] = await conn.query('SELECT name, phone, profile_image FROM users WHERE id = ?', [order.seller_id]);
         const updatedOrder = await _fetchOrder(conn, id, customer, seller, order.customer_id, order.seller_id);
         return res.status(200).json({ message: 'Order priced.', order: updatedOrder });
     } catch (error) {
@@ -163,8 +163,8 @@ const updateOrderItems = async (req, res) => {
         await conn.query("UPDATE orders SET total_amount = 0, status = 'PENDING' WHERE id = ?", [id]);
         await conn.commit();
 
-        const [[customer]] = await conn.query('SELECT name, phone FROM users WHERE id = ?', [order.customer_id]);
-        const [[seller]] = await conn.query('SELECT name, phone FROM users WHERE id = ?', [order.seller_id]);
+        const [[customer]] = await conn.query('SELECT name, phone, profile_image FROM users WHERE id = ?', [order.customer_id]);
+        const [[seller]] = await conn.query('SELECT name, phone, profile_image FROM users WHERE id = ?', [order.seller_id]);
         const updatedOrder = await _fetchOrder(conn, id, customer, seller, order.customer_id, order.seller_id);
         return res.status(200).json({ message: 'Order items updated.', order: updatedOrder });
     } catch (error) {
@@ -202,8 +202,8 @@ const confirmOrder = async (req, res) => {
         );
         await conn.commit();
 
-        const [[customer]] = await conn.query('SELECT name, phone FROM users WHERE id = ?', [order.customer_id]);
-        const [[seller]] = await conn.query('SELECT name, phone FROM users WHERE id = ?', [order.seller_id]);
+        const [[customer]] = await conn.query('SELECT name, phone, profile_image FROM users WHERE id = ?', [order.customer_id]);
+        const [[seller]] = await conn.query('SELECT name, phone, profile_image FROM users WHERE id = ?', [order.seller_id]);
         const updatedOrder = await _fetchOrder(conn, id, customer, seller, order.customer_id, order.seller_id);
         return res.status(200).json({ message: 'Order confirmed.', order: updatedOrder });
     } catch (error) {
@@ -236,8 +236,8 @@ const markReady = async (req, res) => {
         );
         await conn.commit();
 
-        const [[customer]] = await conn.query('SELECT name, phone FROM users WHERE id = ?', [order.customer_id]);
-        const [[seller]] = await conn.query('SELECT name, phone FROM users WHERE id = ?', [order.seller_id]);
+        const [[customer]] = await conn.query('SELECT name, phone, profile_image FROM users WHERE id = ?', [order.customer_id]);
+        const [[seller]] = await conn.query('SELECT name, phone, profile_image FROM users WHERE id = ?', [order.seller_id]);
         const updatedOrder = await _fetchOrder(conn, id, customer, seller, order.customer_id, order.seller_id);
         return res.status(200).json({ message: 'Order marked ready.', order: updatedOrder });
     } catch (error) {
@@ -273,8 +273,8 @@ const verifyCode = async (req, res) => {
             "UPDATE orders SET status = 'completed', code_verified = 1 WHERE id = ?", [id]
         );
 
-        const [[customer]] = await conn.query('SELECT name, phone FROM users WHERE id = ?', [order.customer_id]);
-        const [[seller]] = await conn.query('SELECT name, phone FROM users WHERE id = ?', [order.seller_id]);
+        const [[customer]] = await conn.query('SELECT name, phone, profile_image FROM users WHERE id = ?', [order.customer_id]);
+        const [[seller]] = await conn.query('SELECT name, phone, profile_image FROM users WHERE id = ?', [order.seller_id]);
         const updatedOrder = await _fetchOrder(conn, id, customer, seller, order.customer_id, order.seller_id);
         conn.release();
         return res.status(200).json({ message: 'Code verified. Order completed!', order: updatedOrder });
@@ -303,8 +303,8 @@ const completeOrder = async (req, res) => {
 
         await conn.query("UPDATE orders SET status = 'completed' WHERE id = ?", [id]);
 
-        const [[customer]] = await conn.query('SELECT name, phone FROM users WHERE id = ?', [order.customer_id]);
-        const [[seller]] = await conn.query('SELECT name, phone FROM users WHERE id = ?', [order.seller_id]);
+        const [[customer]] = await conn.query('SELECT name, phone, profile_image FROM users WHERE id = ?', [order.customer_id]);
+        const [[seller]] = await conn.query('SELECT name, phone, profile_image FROM users WHERE id = ?', [order.seller_id]);
         const updatedOrder = await _fetchOrder(conn, id, customer, seller, order.customer_id, order.seller_id);
         conn.release();
         return res.status(200).json({ message: 'Order completed.', order: updatedOrder });
@@ -388,8 +388,8 @@ async function _fetchOrdersForUser(pool, column, userId) {
     const result = [];
     for (const o of orderRows) {
         const [itemRows] = await pool.query('SELECT * FROM order_items WHERE order_id = ?', [o.id]);
-        const [[customer]] = await pool.query('SELECT name, phone FROM users WHERE id = ?', [o.customer_id]);
-        const [[seller]] = await pool.query('SELECT name, phone FROM users WHERE id = ?', [o.seller_id]);
+        const [[customer]] = await pool.query('SELECT name, phone, profile_image FROM users WHERE id = ?', [o.customer_id]);
+        const [[seller]] = await pool.query('SELECT name, phone, profile_image FROM users WHERE id = ?', [o.seller_id]);
         result.push(_formatOrder(o, itemRows, customer, seller, o.customer_id, o.seller_id));
     }
     return result;
@@ -401,9 +401,11 @@ function _formatOrder(o, itemRows, customer, seller, customerId, sellerId) {
         customerId,
         customerName: customer?.name ?? 'Unknown',
         customerPhone: customer?.phone ?? 'N/A',
+        customerProfileImage: customer?.profile_image ?? null,
         sellerId,
         sellerName: seller?.name ?? 'Unknown',
         sellerPhone: seller?.phone ?? 'N/A',
+        sellerProfileImage: seller?.profile_image ?? null,
         items: itemRows.map((i) => ({
             name: i.name,
             quantity: i.quantity,
